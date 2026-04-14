@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tic Tac Toe — Vanishing Edition</title>
+  <meta name="description" content="Tic Tac Toe with a twist: each player only keeps 3 pieces on the board. Play against a friend or the computer!">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #0d1117;
+      --surface:  #161b22;
+      --border:   #30363d;
+      --accent:   #e94560;
+      --blue:     #58a6ff;
+      --teal:     #7ee8a2;
+      --muted:    #8b949e;
+      --text:     #e6edf3;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 1.5rem;
+    }
+
+    header h1 {
+      font-size: clamp(1.8rem, 5vw, 2.6rem);
+      letter-spacing: 3px;
+      color: var(--accent);
+      text-transform: uppercase;
+    }
+
+    header p {
+      font-size: 0.82rem;
+      color: var(--muted);
+      margin-top: 0.3rem;
+    }
+
+    /* Mode toggle pills */
+    #mode-bar {
+      display: flex;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 4px;
+      gap: 4px;
+      margin-bottom: 1.2rem;
+    }
+
+    .mode-btn {
+      padding: 0.4rem 1.1rem;
+      border: none;
+      border-radius: 999px;
+      font-size: 0.85rem;
+      cursor: pointer;
+      background: transparent;
+      color: var(--muted);
+      transition: background 0.15s, color 0.15s;
+    }
+
+    .mode-btn.active {
+      background: var(--accent);
+      color: #fff;
+      font-weight: 600;
+    }
+
+    /* Score strip */
+    #score-strip {
+      display: flex;
+      gap: 1.5rem;
+      margin-bottom: 1.2rem;
+      font-size: 0.9rem;
+      color: var(--muted);
+    }
+
+    .score-item { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+    .score-item .label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 1px; }
+    .score-item .value { font-size: 1.4rem; font-weight: 700; color: var(--text); }
+    .score-item.x-score .value { color: var(--accent); }
+    .score-item.o-score .value { color: var(--teal); }
+
+    /* Status */
+    #status {
+      font-size: 1.05rem;
+      min-height: 1.4em;
+      margin-bottom: 1rem;
+      color: var(--blue);
+      letter-spacing: 0.5px;
+    }
+
+    /* Board */
+    #board {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      width: min(360px, 92vw);
+      aspect-ratio: 1;
+      margin-bottom: 1.4rem;
+    }
+
+    .cell {
+      background: var(--surface);
+      border: 2px solid var(--border);
+      border-radius: 14px;
+      font-size: clamp(2rem, 8vw, 3rem);
+      font-weight: 900;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.12s, transform 0.1s, opacity 0.2s, border-color 0.2s;
+      user-select: none;
+    }
+
+    .cell:hover:not(.taken) {
+      background: #1c2230;
+      transform: scale(1.04);
+      border-color: #58a6ff44;
+    }
+
+    .cell.x { color: var(--accent); }
+    .cell.o { color: var(--teal); }
+
+    .cell.vanish-next {
+      opacity: 0.28;
+      border-style: dashed;
+    }
+
+    .cell.pop {
+      animation: pop 0.2s ease;
+    }
+
+    .cell.win {
+      opacity: 1 !important;
+      border-style: solid !important;
+      animation: winner 0.5s ease forwards;
+    }
+    .cell.win.x { border-color: var(--accent); background: #e9456014; }
+    .cell.win.o { border-color: var(--teal);   background: #7ee8a214; }
+
+    @keyframes pop {
+      0%   { transform: scale(0.7); }
+      60%  { transform: scale(1.1); }
+      100% { transform: scale(1); }
+    }
+
+    @keyframes winner {
+      0%, 100% { transform: scale(1); }
+      40%       { transform: scale(1.12); }
+    }
+
+    /* Legend */
+    #legend {
+      display: flex;
+      gap: 1.4rem;
+      font-size: 0.78rem;
+      color: var(--muted);
+      margin-bottom: 1.5rem;
+    }
+
+    #legend span { display: flex; align-items: center; gap: 0.4rem; }
+
+    .dot {
+      width: 10px; height: 10px;
+      border-radius: 3px;
+      display: inline-block;
+    }
+    .dot.solid-x  { background: var(--accent); }
+    .dot.solid-o  { background: var(--teal); }
+    .dot.faded    { background: var(--muted); opacity: 0.35; border: 1px dashed var(--muted); }
+
+    /* Restart */
+    #restart {
+      padding: 0.55rem 1.8rem;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      letter-spacing: 0.5px;
+      transition: opacity 0.15s, transform 0.1s;
+    }
+
+    #restart:hover { opacity: 0.85; transform: scale(1.03); }
+
+    footer {
+      margin-top: 2rem;
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+    footer a { color: var(--blue); text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Tic Tac Toe</h1>
+  <p>Vanishing Edition — only 3 pieces per player on the board</p>
+</header>
+
+<div id="mode-bar">
+  <button class="mode-btn active" id="btn-2p">2 Players</button>
+  <button class="mode-btn" id="btn-cpu">vs Computer</button>
+</div>
+
+<div id="score-strip">
+  <div class="score-item x-score">
+    <span class="label">X</span>
+    <span class="value" id="score-x">0</span>
+  </div>
+  <div class="score-item">
+    <span class="label">Draw</span>
+    <span class="value" id="score-d">0</span>
+  </div>
+  <div class="score-item o-score">
+    <span class="label">O</span>
+    <span class="value" id="score-o">0</span>
+  </div>
+</div>
+
+<div id="status">Player X's turn</div>
+
+<div id="board"></div>
+
+<div id="legend">
+  <span><span class="dot solid-x"></span> Active piece</span>
+  <span><span class="dot faded"></span> Vanishes next move</span>
+</div>
+
+<button id="restart">New Game</button>
+
+<footer>
+  Open source &mdash;
+  <a href="https://github.com" target="_blank" rel="noopener">View on GitHub</a>
+</footer>
+
+<script>
+  const boardEl   = document.getElementById('board');
+  const statusEl  = document.getElementById('status');
+  const restartBtn = document.getElementById('restart');
+  const btn2p     = document.getElementById('btn-2p');
+  const btnCpu    = document.getElementById('btn-cpu');
+  const sX = document.getElementById('score-x');
+  const sO = document.getElementById('score-o');
+  const sD = document.getElementById('score-d');
+
+  const WINS = [
+    [0,1,2],[3,4,5],[6,7,8],
+    [0,3,6],[1,4,7],[2,5,8],
+    [0,4,8],[2,4,6]
+  ];
+
+  const MAX = 3;
+  let board, queues, current, gameOver, vsComputer;
+  let scores = { X: 0, O: 0, D: 0 };
+  vsComputer = false;
+
+  function init() {
+    board    = Array(9).fill(null);
+    queues   = { X: [], O: [] };
+    current  = 'X';
+    gameOver = false;
+    statusEl.textContent = "Player X's turn";
+    render();
+  }
+
+  function vanishIdx(p) {
+    return queues[p].length === MAX ? queues[p][0] : -1;
+  }
+
+  function render() {
+    const vX = vanishIdx('X'), vO = vanishIdx('O');
+    boardEl.innerHTML = '';
+    board.forEach((val, i) => {
+      const cell = document.createElement('div');
+      let cls = 'cell';
+      if (val) {
+        cls += ` ${val.toLowerCase()} taken`;
+        if ((val === 'X' && i === vX) || (val === 'O' && i === vO)) cls += ' vanish-next';
+      }
+      cell.className = cls;
+      cell.textContent = val || '';
+      cell.addEventListener('click', () => handleClick(i));
+      boardEl.appendChild(cell);
+    });
+  }
+
+  function popCell(i) {
+    const cells = boardEl.querySelectorAll('.cell');
+    cells[i].classList.add('pop');
+  }
+
+  function highlightWin(combo) {
+    const cells = boardEl.querySelectorAll('.cell');
+    combo.forEach(i => {
+      cells[i].classList.remove('vanish-next');
+      cells[i].classList.add('win');
+    });
+  }
+
+  function handleClick(i) {
+    if (gameOver || board[i]) return;
+    if (vsComputer && current === 'O') return;
+    makeMove(i);
+  }
+
+  function applyMove(b, q, player, idx) {
+    const nb = [...b];
+    const nq = { X: [...q.X], O: [...q.O] };
+    nb[idx] = player;
+    nq[player].push(idx);
+    if (nq[player].length > MAX) nb[nq[player].shift()] = null;
+    return { board: nb, queues: nq };
+  }
+
+  function makeMove(i) {
+    const { board: nb, queues: nq } = applyMove(board, queues, current, i);
+    board  = nb;
+    queues = nq;
+    render();
+    popCell(i);
+
+    const result = checkResultFor(board);
+    if (result) return endGame(result);
+
+    current = current === 'X' ? 'O' : 'X';
+    statusEl.textContent = vsComputer && current === 'O'
+      ? 'Computer is thinking…'
+      : `Player ${current}'s turn`;
+
+    if (vsComputer && current === 'O' && !gameOver) {
+      setTimeout(computerMove, 450);
+    }
+  }
+
+  function computerMove() {
+    const move = bestMove();
+    if (move !== null) makeMove(move);
+  }
+
+  function checkResultFor(b) {
+    for (const [a, bc, c] of WINS) {
+      if (b[a] && b[a] === b[bc] && b[a] === b[c])
+        return { winner: b[a], combo: [a, bc, c] };
+    }
+    return null;
+  }
+
+  function endGame({ winner, combo }) {
+    gameOver = true;
+    if (winner) {
+      statusEl.textContent = vsComputer && winner === 'O'
+        ? 'Computer wins!'
+        : `Player ${winner} wins!`;
+      scores[winner]++;
+      highlightWin(combo);
+    } else {
+      statusEl.textContent = "It's a draw!";
+      scores.D++;
+    }
+    sX.textContent = scores.X;
+    sO.textContent = scores.O;
+    sD.textContent = scores.D;
+  }
+
+  // ── AI (minimax + vanishing mechanic, depth-limited) ──────────────────────
+
+  function bestMove() {
+    let best = -Infinity, move = null;
+    for (let i = 0; i < 9; i++) {
+      if (!board[i]) {
+        const { board: nb, queues: nq } = applyMove(board, queues, 'O', i);
+        const score = minimax(nb, nq, 0, false);
+        if (score > best) { best = score; move = i; }
+      }
+    }
+    return move;
+  }
+
+  function minimax(b, q, depth, isMax) {
+    const result = checkResultFor(b);
+    if (result) return result.winner === 'O' ? 10 - depth : depth - 10;
+    if (depth >= 7) return 0;
+
+    const player = isMax ? 'O' : 'X';
+    let best = isMax ? -Infinity : Infinity;
+
+    for (let i = 0; i < 9; i++) {
+      if (!b[i]) {
+        const { board: nb, queues: nq } = applyMove(b, q, player, i);
+        const score = minimax(nb, nq, depth + 1, !isMax);
+        best = isMax ? Math.max(best, score) : Math.min(best, score);
+      }
+    }
+    return best;
+  }
+
+  // ── Controls ──────────────────────────────────────────────────────────────
+
+  btn2p.addEventListener('click', () => {
+    vsComputer = false;
+    btn2p.classList.add('active');
+    btnCpu.classList.remove('active');
+    init();
+  });
+
+  btnCpu.addEventListener('click', () => {
+    vsComputer = true;
+    btnCpu.classList.add('active');
+    btn2p.classList.remove('active');
+    init();
+  });
+
+  restartBtn.addEventListener('click', init);
+
+  init();
+</script>
+</body>
+</html>
